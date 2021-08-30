@@ -34,7 +34,7 @@ def dummy(DF, cols=None):
 	return concat(dummies, axis=1, keys=DF.columns)
 
 
-def _mul(*args):
+def _multiply_matrices(*args):
 	"""An internal method to multiply matrices."""
 	return reduce(dot, args)
 
@@ -49,44 +49,53 @@ class MCA(object):
 	'cols': The columns of the DataFrame to process.
 	'ncols': The number of columns before dummy coding. To be passed if cols isn't.
 	'benzecri': Perform Benzécri correction (default: True)
-	'TOL': value below which to round eigenvalues to zero (default: 1e-4)
+	'tol': value below which to round eigenvalues to zero (default: 1e-4)
 	"""
 
-	def __init__(self, DF, cols=None, ncols=None, benzecri=True, TOL=1e-4, 
-		sparse=False, approximate=False):
-
-		X, self.K, self.J = process_df(DF, cols, ncols)
+	def __init__(self, cols=None, n_cols=None, benzecri=True, tol=1e-4, sparse=False, approximate=False):
+		self.cols = cols
+		self.n_cols = n_cols
+		self.benzecri = benzecri
+		self.tol = tol
+		self.sparse = sparse
+		self.approximate = approximate
+	
+	def fit(self, X):
+		self._fit(X)
+		return self
+	
+	def _fit(self, X):
+		X, self.K, self.J = process_df(X, self.cols, self.n_cols)
 		S = X.sum().sum()
-		Z = X / S  # correspondence matrix
-		self.r = Z.sum(axis=1)
-		self.c = Z.sum()
-		self.cor = benzecri
+		Z = X / S  # Calculate correspondence matrix
+		self.r = Z.sum(axis=1) # Calculate row masses
+		self.c = Z.sum() # Calculate column masses
 
 		eps = finfo(float).eps
-		self.D_r = (diags if sparse else diag)(1/(eps + sqrt(self.r)))
+		self.D_r = (diags if self.sparse else diag)(1/(eps + sqrt(self.r)))
 		self.D_c = diag(1/(eps + sqrt(self.c)))  # can't use diags here
 		Z_c = Z - outer(self.r, self.c)  # standardized residuals matrix
 
 		product = self.D_r.dot(Z_c).dot(self.D_c)
-		if sparse:
-			P, s, Q = svds(product, min(product.shape)-1 if ncols is None else ncols)
+		if self.sparse:
+			P, s, Q = svds(product, min(product.shape)-1 if self.n_cols is None else self.n_cols)
 			# svds and svd use complementary orders
 			self.P = P.T[::-1].T
 			self.Q = Q[::-1]
 			self.s = s[::-1]
 			self._numitems = min(product.shape)-1
 		else:
-			self._numitems = len(DF)
+			self._numitems = len(X)
 			self.P, self.s, self.Q = svd(product)
 
 		self.E = None
-		E = self._benzecri() if self.cor else self.s**2
+		E = self._apply_benzecri_correction() if self.benzecri else self.s**2
 		self.inertia = sum(E)
-		self.rank = argmax(E < TOL)
+		self.rank = argmax(E < self.tol)
 		if not self.rank: self.rank = len(E)
 		self.L = E[:self.rank]
 
-	def _benzecri(self):
+	def _apply_benzecri_correction(self):
 		if self.E is None:
 			self.E = array([(self.K/(self.K-1.)*(_ - 1./self.K))**2
 							  if _ > 1./self.K else 0 for _ in self.s**2])
@@ -111,9 +120,9 @@ class MCA(object):
 		self.k = 1 + flatnonzero(cumsum(self.L) >= sum(self.L)*percent)[0]
 		#  S = zeros((self._numitems, self.k))
 		# the sign of the square root can be either way; singular value vs. eigenvalue
-		# fill_diagonal(S, -sqrt(self.E) if self.cor else self.s)
+		# fill_diagonal(S, -sqrt(self.E) if self.benzecri else self.s)
 		num2ret = N if N else self.k
-		s = -sqrt(self.L) if self.cor else self.s
+		s = -sqrt(self.L) if self.benzecri else self.s
 		S = diagsvd(s[:num2ret], self._numitems, num2ret)
 		self.F = self.D_r.dot(self.P).dot(S)
 		return self.F
@@ -139,11 +148,11 @@ class MCA(object):
 		self.k = 1 + flatnonzero(cumsum(self.L) >= sum(self.L)*percent)[0]
 		#  S = zeros((self._numitems, self.k))
 		# the sign of the square root can be either way; singular value vs. eigenvalue
-		# fill_diagonal(S, -sqrt(self.E) if self.cor else self.s)
+		# fill_diagonal(S, -sqrt(self.E) if self.benzecri else self.s)
 		num2ret = N if N else self.k
-		s = -sqrt(self.L) if self.cor else self.s
+		s = -sqrt(self.L) if self.benzecri else self.s
 		S = diagsvd(s[:num2ret], len(self.Q), num2ret)
-		self.G = _mul(self.D_c, self.Q.T, S)  # important! note the transpose on Q
+		self.G = _multiply_matrices(self.D_c, self.Q.T, S)  # important! note the transpose on Q
 		return self.G
 
 	def cos_r(self, N=None):  # percent=0.9
@@ -191,9 +200,9 @@ class MCA(object):
 		if greenacre:
 			greenacre_inertia = (self.K / (self.K - 1.) * (sum(self.s**4)
 								 - (self.J - self.K) / self.K**2.))
-			return (self._benzecri() / greenacre_inertia)[:N]
+			return (self._apply_benzecri_correction() / greenacre_inertia)[:N]
 		else:
-			E = self._benzecri() if self.cor else self.s**2
+			E = self._apply_benzecri_correction() if self.benzecri else self.s**2
 			return (E / sum(E))[:N]
 
 	def fs_r_sup(self, DF, N=None):
@@ -207,11 +216,11 @@ class MCA(object):
 
 		if N and (not isinstance(N, int) or N <= 0):
 			raise ValueError("ncols should be a positive integer.")
-		s = -sqrt(self.E) if self.cor else self.s
+		s = -sqrt(self.E) if self.benzecri else self.s
 		N = min(N, self.rank) if N else self.rank
 		S_inv = diagsvd(-1/s[:N], len(self.G.T), N)
 		# S = diagsvd(s[:N], len(self.tau), N)
-		return _mul(DF.div(DF.sum(axis=1), axis=0), self.G, S_inv)[:, :N]
+		return _multiply_matrices(DF.div(DF.sum(axis=1), axis=0), self.G, S_inv)[:, :N]
 
 	def fs_c_sup(self, DF, N=None):
 		"""Find the supplementary column factor scores.
@@ -224,8 +233,8 @@ class MCA(object):
 
 		if N and (not isinstance(N, int) or N <= 0):
 			raise ValueError("ncols should be a positive integer.")
-		s = -sqrt(self.E) if self.cor else self.s
+		s = -sqrt(self.E) if self.benzecri else self.s
 		N = min(N, self.rank) if N else self.rank
 		S_inv = diagsvd(-1/s[:N], len(self.F.T), N)
 		# S = diagsvd(s[:N], len(self.tau), N)
-		return _mul((DF/DF.sum()).T, self.F, S_inv)[:, :N]
+		return _multiply_matrices((DF/DF.sum()).T, self.F, S_inv)[:, :N]

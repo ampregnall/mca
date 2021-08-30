@@ -27,28 +27,29 @@ class TestMca(TestCase):
 		# first we check the eigenvalues and factor scores with Benzecri
 		# correction
 		df = read_table('data/burgundies.csv', skiprows=1, sep=',', index_col=0)
-		mca_df = MCA(df.drop('oak_type', axis=1), ncols=10)
-		assert_allclose([0.7004, 0.0123, 0.0003], mca_df.E[:3], atol=1e-4)
+		mca = MCA(n_cols=10)
+		mca.fit(df.drop('oak_type', axis=1))
+		assert_allclose([0.7004, 0.0123, 0.0003], mca.E[:3], atol=1e-4)
 		true_fs_row = [[0.86, 0.08], [-0.71, -0.16], [-0.92, 0.08],
 					   [-0.86, 0.08], [0.92, 0.08], [0.71, -0.16]]
-		assert_allclose(true_fs_row, mca_df.fs_r(N=2), atol=1e-2)
+		assert_allclose(true_fs_row, mca.fs_r(N=2), atol=1e-2)
 		true_fs_col = [[.90, -.90, -.97, .00, .97, -.90, .90, .90, -.90, -.9,
 						.90, -.97, .00, .97, -.90, .90, .28, -.28, -.90, .90,
 						-.90, .9, .90, -.90],
 					   [.00, .00, .18, -.35, .18, .00, .00, .00, .0, .00, .00,
 						.18, -.35, .18, .00, .00, .0, .00, .00, .00, .00, .00,
 						.00, .00]]
-		assert_allclose(array(true_fs_col).T[:-2], mca_df.fs_c(N=2), atol=1e-2)
+		assert_allclose(array(true_fs_col).T[:-2], mca.fs_c(N=2), atol=1e-2)
 
 		true_cont_r = [[177, 121, 202, 177, 202, 121],
 					   [83, 333, 83, 83, 83, 333]]
-		assert_allclose(true_cont_r, 1000*mca_df.cont_r(N=2).T, atol=1)
+		assert_allclose(true_cont_r, 1000*mca.cont_r(N=2).T, atol=1)
 
 		true_cont_c = [[58, 58, 44, 0, 44, 58, 58, 58, 58, 58, 58, 44, 0, 44,
 						58, 58, 6, 6, 58, 58, 58, 58],
 					   [0, 0, 83, 333, 83, 0, 0, 0, 0, 0, 0, 83, 333, 83, 0,
 						0, 0, 0, 0, 0, 0, 0]]
-		assert_allclose(true_cont_c, 1000*mca_df.cont_c(N=2).T, atol=1)
+		assert_allclose(true_cont_c, 1000*mca.cont_c(N=2).T, atol=1)
 
 		# I declined to include a test for the cos_c and cos_r functions because
 		# I think the source itself is mistaken. In Abdi-MCA2007-pretty.pdf as in
@@ -63,26 +64,28 @@ class TestMca(TestCase):
 		# mca_df.fs_c_sup(dummy(oak))
 
 		# ... then without Benzecri correction
-		mca_df_i = MCA(df.drop('oak_type', axis=1), ncols=10, benzecri=False)
+		mca_i = MCA(n_cols=10, benzecri=False)
+		mca_i.fit(df.drop('oak_type', axis=1))
 		assert_allclose([0.8532, 0.2, 0.1151, 0.0317],
-						(mca_df_i.s**2)[:4], atol=1e-4)
+						(mca_i.s**2)[:4], atol=1e-4)
 
 		# check percentage of explained variance both with and without Benzecri
 		# and Greenacre corrections
 		true_expl_var_i = [.7110, .1667, .0959, .0264, 0., 0.]
 		true_expl_var_z = [.9823, .0173, .0004, 0., 0., 0.]
 		true_expl_var_c = [.9519, .0168, .0004, 0., 0., 0.]
-		assert_allclose(mca_df_i.expl_var(False), true_expl_var_i, atol=1e-4)
-		assert_allclose(mca_df_i.expl_var(), true_expl_var_c, atol=1e-4)
-		assert_allclose(mca_df.expl_var(False), true_expl_var_z, atol=1e-4)
-		assert_allclose(mca_df.expl_var(), true_expl_var_c, atol=1e-4)
+		assert_allclose(mca_i.expl_var(False), true_expl_var_i, atol=1e-4)
+		assert_allclose(mca_i.expl_var(), true_expl_var_c, atol=1e-4)
+		assert_allclose(mca.expl_var(False), true_expl_var_z, atol=1e-4)
+		assert_allclose(mca.expl_var(), true_expl_var_c, atol=1e-4)
 
 	def test_abdi_bera(self):
 		# Data taken from www.utdallas.edu/~herve/abdi-AB2014_CA.pdf
 		# Correspondence Analysis, (Herve Abdi & Michel Bera, 2014)
 		# Springer Encyclopedia of Social Networks and Mining.
 		df = read_table('data/music_color.csv', skiprows=0, index_col=0, sep=',')
-		mca_df = MCA(df, benzecri=False)
+		mca_df = MCA(benzecri=False)
+		mca_df.fit(df)
 
 		# Table 1, page 13
 		assert_allclose(mca_df.r, [.121, .091, .126, .116, .096, .066, .071,
@@ -132,7 +135,8 @@ class TestMca(TestCase):
 		# SAGE Encyclopedia of Research Design. Table 4, page 16.
 
 		df = read_table('data/french_writers.csv', skiprows=0, index_col=0, sep=',')
-		mca_df = MCA(df, benzecri=False)
+		mca_df = MCA(benzecri=False)
+		mca_df.fit(df)
 
 		assert_allclose(mca_df.c, [.2973, .5642, .1385], atol=1e-4)
 		assert_allclose(mca_df.r, [.0189, .1393, .2522, .3966, .1094, .0835],
@@ -178,14 +182,16 @@ class TestMca(TestCase):
 
 	def test_invalid_inputs(self):
 		df = read_table('data/burgundies.csv', skiprows=1, sep=',')
-		self.assertRaises(ValueError, MCA, df.iloc[:, 2:], ncols=0)
-		self.assertRaises(ValueError, MCA, df.iloc[:, 2:], ncols='')
+		self.assertRaises(ValueError, MCA(n_cols=0).fit, df.iloc[:, 2:])
+		self.assertRaises(ValueError, MCA(n_cols='').fit, df.iloc[:, 2:])
 
 
 	def test_sparse(self):
 		df = DataFrame(randint(0,2,(100,100)))
-		mca1 = MCA(df, sparse=False)
-		mca2 = MCA(df, sparse=True)
+		mca1 = MCA(sparse=False)
+		mca1.fit(df)
+		mca2 = MCA(sparse=True)
+		mca2.fit(df)
 		assert_allclose(mca1.s[:-1], mca2.s, atol=1e-12)
 		for row1, row2 in zip(mca1.P.T, mca2.P.T):
 		 	assert_allclose(row1, row2 if sign(row1[0])*sign(row2[0]) > 0 else -row2, atol=1e-12) 

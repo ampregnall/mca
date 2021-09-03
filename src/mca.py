@@ -64,6 +64,14 @@ class MCA(object):
 		self._fit(X)
 		return self
 	
+
+	def fit_transform(self, X, percent=0.9, N=None, col_factor_scores=False):
+		self._fit(X)
+		if col_factor_scores:
+			return self._calc_col_factor_scores(percent, N)
+		else: 
+			return self._calc_row_factor_scores(percent, N)
+	
 	def _fit(self, X):
 		X, self.K, self.J = process_df(X, self.cols, self.n_cols)
 		S = X.sum().sum()
@@ -101,7 +109,7 @@ class MCA(object):
 							  if _ > 1./self.K else 0 for _ in self.s**2])
 		return self.E
 
-	def fs_r(self, percent=0.9, N=None):
+	def _calc_row_factor_scores(self, percent=0.9, N=None):
 		"""Get the row factor scores (dimensionality-reduced representation),
 		choosing how many factors to retain, directly or based on the explained
 		variance.
@@ -127,7 +135,7 @@ class MCA(object):
 		self.F = self.D_r.dot(self.P).dot(S)
 		return self.F
 
-	def fs_c(self, percent=0.9, N=None):
+	def _calc_col_factor_scores(self, percent=0.9, N=None):
 		"""Get the column factor scores (dimensionality-reduced representation),
 		choosing how many factors to retain, directly or based on the explained
 		variance.
@@ -159,7 +167,7 @@ class MCA(object):
 		"""Return the squared cosines for each row."""
 
 		if not hasattr(self, 'F') or self.F.shape[1] < self.rank:
-			self.fs_r(N=self.rank)  # generate F
+			self._calc_row_factor_scores(N=self.rank)  # generate F
 		self.dr = norm(self.F, axis=1)**2
 		# cheaper than diag(self.F.dot(self.F.T))?
 
@@ -169,7 +177,7 @@ class MCA(object):
 		"""Return the squared cosines for each column."""
 
 		if not hasattr(self, 'G') or self.G.shape[1] < self.rank:
-			self.fs_c(N=self.rank)  # generate
+			self._calc_col_factor_scores(N=self.rank)  # generate
 		self.dc = norm(self.G, axis=1)**2
 		# cheaper than diag(self.G.dot(self.G.T))?
 
@@ -179,7 +187,7 @@ class MCA(object):
 		"""Return the contribution of each row."""
 
 		if not hasattr(self, 'F'):
-			self.fs_r(N=self.rank)  # generate F
+			self._calc_row_factor_scores(N=self.rank)  # generate F
 		return apply_along_axis(lambda _: _/self.L[:N], 1,
 			   apply_along_axis(lambda _: _*self.r, 0, self.F[:, :N]**2))
 
@@ -187,7 +195,7 @@ class MCA(object):
 		"""Return the contribution of each column."""
 
 		if not hasattr(self, 'G'):
-			self.fs_c(N=self.rank)  # generate G
+			self._calc_col_factor_scores(N=self.rank)  # generate G
 		return apply_along_axis(lambda _: _/self.L[:N], 1,
 			   apply_along_axis(lambda _: _*self.c, 0, self.G[:, :N]**2))
 
@@ -212,7 +220,7 @@ class MCA(object):
 		If both are passed, cols is given preference.
 		"""
 		if not hasattr(self, 'G'):
-			self.fs_c(N=self.rank)  # generate G
+			self._calc_col_factor_scores(N=self.rank)  # generate G
 
 		if N and (not isinstance(N, int) or N <= 0):
 			raise ValueError("ncols should be a positive integer.")
@@ -229,7 +237,7 @@ class MCA(object):
 		If both are passed, cols is given preference.
 		"""
 		if not hasattr(self, 'F'):
-			self.fs_r(N=self.rank)  # generate F
+			self._calc_row_factor_scores(N=self.rank)  # generate F
 
 		if N and (not isinstance(N, int) or N <= 0):
 			raise ValueError("ncols should be a positive integer.")

@@ -27,19 +27,20 @@ class TestMca(TestCase):
 		# first we check the eigenvalues and factor scores with Benzecri
 		# correction
 		df = read_table('data/burgundies.csv', skiprows=1, sep=',', index_col=0)
+		df_nolab = df.drop('oak_type', axis=1)
 		mca = MCA(n_cols=10)
-		mca.fit(df.drop('oak_type', axis=1))
+		mca.fit(df_nolab)
 		assert_allclose([0.7004, 0.0123, 0.0003], mca.E[:3], atol=1e-4)
 		true_fs_row = [[0.86, 0.08], [-0.71, -0.16], [-0.92, 0.08],
 					   [-0.86, 0.08], [0.92, 0.08], [0.71, -0.16]]
-		assert_allclose(true_fs_row, mca.fs_r(N=2), atol=1e-2)
+		assert_allclose(true_fs_row, mca.fit_transform(df_nolab, N=2), atol=1e-2)
 		true_fs_col = [[.90, -.90, -.97, .00, .97, -.90, .90, .90, -.90, -.9,
 						.90, -.97, .00, .97, -.90, .90, .28, -.28, -.90, .90,
 						-.90, .9, .90, -.90],
 					   [.00, .00, .18, -.35, .18, .00, .00, .00, .0, .00, .00,
 						.18, -.35, .18, .00, .00, .0, .00, .00, .00, .00, .00,
 						.00, .00]]
-		assert_allclose(array(true_fs_col).T[:-2], mca.fs_c(N=2), atol=1e-2)
+		assert_allclose(array(true_fs_col).T[:-2], mca.fit_transform(df_nolab, N=2, col_factor_scores=True), atol=1e-2)
 
 		true_cont_r = [[177, 121, 202, 177, 202, 121],
 					   [83, 333, 83, 83, 83, 333]]
@@ -65,7 +66,7 @@ class TestMca(TestCase):
 
 		# ... then without Benzecri correction
 		mca_i = MCA(n_cols=10, benzecri=False)
-		mca_i.fit(df.drop('oak_type', axis=1))
+		mca_i.fit(df_nolab)
 		assert_allclose([0.8532, 0.2, 0.1151, 0.0317],
 						(mca_i.s**2)[:4], atol=1e-4)
 
@@ -94,7 +95,7 @@ class TestMca(TestCase):
 						atol=1e-2)
 
 		# Table 2, page 14
-		assert_allclose(mca_df.fs_r(N=2), [[-0.026, 0.299], [-0.314, 0.232],
+		assert_allclose(mca_df.fit_transform(df, N=2), [[-0.026, 0.299], [-0.314, 0.232],
 										   [-0.348, 0.202], [-0.044, -0.490],
 										   [-0.082, -0.206], [-0.619, 0.475],
 										   [-0.328, 0.057], [1.195, 0.315],
@@ -111,7 +112,7 @@ class TestMca(TestCase):
 						atol=1)
 
 		# Table 3, page 17
-		assert_allclose(mca_df.fs_c(N=2),
+		assert_allclose(mca_df.fit_transform(df, N=2, col_factor_scores=True),
 						[[-0.541, 0.386], [-.257, .275], [-.291, -.309],
 						 [.991, .397], [-.122, -.637], [-.236, .326],
 						 [.954, -.089], [-.427, .408], [-.072, -.757]],
@@ -144,11 +145,11 @@ class TestMca(TestCase):
 
 		true_fs_row = [[0.2398, 0.1895, 0.1033, -0.0918, -0.2243, 0.0475],
 					   [0.0741, 0.1071, -0.0297, 0.0017, 0.0631, -0.1963]]
-		assert_allclose(mca_df.fs_r(N=2).T, true_fs_row, atol=1e-4)
+		assert_allclose(mca_df.fit_transform(df, N=2).T, true_fs_row, atol=1e-4)
 		assert_allclose(mca_df.L, [.0178, .0056], atol=1e-4)
 
 		true_fs_col = [[-0.0489, 0.0973, -0.2914], [.1115, -0.0367, -0.0901]]
-		assert_allclose(-mca_df.fs_c(N=2).T, true_fs_col, atol=1e-4)
+		assert_allclose(-mca_df.fit_transform(df, N=2, col_factor_scores=True).T, true_fs_col, atol=1e-4)
 
 		true_cont_r = [[0.0611, 0.2807, 0.1511, 0.1876, 0.3089, 0.0106],
 					   [0.0186, 0.2864, 0.0399, 0.0002, 0.0781, 0.5767]]

@@ -61,10 +61,22 @@ class MCA(object):
 		self.approximate = approximate
 	
 	def fit(self, X):
+		"""
+		Fit the model with dataframe X.
+       
+       		Parameters:
+        		X (Pandas DataFrame): Training data
+
+	        Returns:
+	        	self (object): Returns the instance itself.
+		"""
 		self._fit(X)
 		return self
 	
 	def _fit(self, X):
+		"""
+		Internal fit method containing calculations for multiple correspondence analysis.
+		"""
 		X, self.K, self.J = process_df(X, self.cols, self.n_cols)
 		S = X.sum().sum()
 		Z = X / S  # Calculate correspondence matrix
